@@ -53,7 +53,7 @@ class Deck:
 
 
 class Player:
-    CRCHD = [] #CPD 是 Color and Rank of the Card the Human Dealt 的縮寫，用來表示人類玩家出的牌
+    CRCHD = [] #CRCHD 是 Color and Rank of the Card the Human Dealt 的縮寫，用來表示人類玩家出的牌
     WHD = False # WHD 是 Will the Human Draw 的縮寫，用來表示人類玩家是否要抽牌
     def __init__(self, name, isRobot):
         self.name = name
