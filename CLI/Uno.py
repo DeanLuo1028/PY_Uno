@@ -15,6 +15,11 @@ RANKS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse", "+2"]
 
 
 class Card:
+    """一張牌
+    Attributes:
+        color (Color): 牌的顏色
+        rank (str): 牌的點數
+    """
     def __init__(self, color: Color, rank: str):
         self.color: Color = color
         self.rank: str = rank
@@ -37,7 +42,11 @@ class Card:
 
 
 class Deck:
-    """有牌組和棄牌堆"""
+    """牌組
+    Attributes:
+        cards (List[Card]): 牌組，用於發牌、抽牌
+        discard (List[Card]): 棄牌堆
+    """
     # 建構函式，初始化牌組
     def __init__(self):
         self.cards: List[Card] = [] # 用於發牌、抽牌
@@ -54,12 +63,31 @@ class Deck:
         for _ in range(4):
             self.cards.append(Card(Color.SPECIAL, "wild"))
             self.cards.append(Card(Color.SPECIAL, "+4"))
+        
+        self.shuffle() # 初始化時就洗牌
     
-    # 洗牌的方法
     def shuffle(self) -> None:
+        """洗牌"""
         from random import shuffle
         shuffle(self.cards)
         print("洗牌完成!")
+    
+    def draw(self) -> Card:
+        """牌組給出一張牌
+        Returns:
+            Card: 抽到的牌
+        """
+        if not self.cards:
+            print("牌已經沒了！")
+            self.replenish() # 補充牌組
+        return self.cards.pop()
+    
+    def replenish(self) -> None:
+        """用棄牌堆補充牌組"""
+        discard_last_card = self.discard.pop() # 先取出棄牌堆頂端的牌
+        self.cards = self.discard # 牌組已經沒了，將棄牌堆的牌當成新牌組
+        self.discard = [discard_last_card] # 將棄牌堆變成只剩原先最後出的牌，為了讓下一個人能出
+        self.shuffle() # 重新洗牌
 
 
 class Player:
@@ -76,14 +104,11 @@ class Player:
             deck (Deck): 牌組
         """
         for _ in range(cards_num): # 抽cards_num張牌
-            if deck.cards: # 牌組中有牌
-                # 從牌組中取出一張牌，將牌加入玩家手牌
-                self.hand.append( card:=deck.cards.pop() )
-                if not self.is_robot:
-                    print(f"{self.name}抽到了{card}")
-            else:
-                print("牌已經沒了！")
-                break # 當牌已經發完時終止循環
+            # 從牌組中取出一張牌，將牌加入玩家手牌
+            self.hand.append( card:=deck.draw() )
+            if not self.is_robot:
+                print(f"{self.name}抽到了{card}")
+
     
     def win(self) -> bool:
         """如果手牌數量為 0，則傳回 True，否則傳回 False"""
@@ -171,6 +196,12 @@ class Player:
                 return True # 回傳True，表示有出牌
     
     def action(self, deck: Deck) -> str:
+        """玩家行動
+        Args:
+            deck (Deck): 牌組
+        Returns:
+            str: 玩家行動後的狀態，有normal, Skip, Reverse, +2, +4, win等
+        """
         card: Card = deck.discard[len(deck.discard)-1]
         print("現在牌堆最上方的牌:"+str(card))
         # 玩家行動
@@ -184,7 +215,7 @@ class Player:
         if self.win():
             return "win" # 玩家獲勝，回傳win
         
-        played_card: Card = deck.discard[-1] # 棄牌堆最後的牌是剛剛出的牌
+        played_card: Card = deck.discard[-1] # 棄牌堆頂端的牌是剛剛出的牌
         #為了將特殊情況回傳給主函數
         if played_card.color == Color.SPECIAL: # 出了特殊牌
             played_card.color = self.convert_color() # 將特殊牌的顏色轉換成玩家所選的顏色
@@ -200,13 +231,18 @@ class Player:
         else:
             return played_card.rank # 回傳特殊牌的點數，如Skip, Reverse, +2
     
-    def say_card_num(self) -> None:     
+    def say_card_num(self) -> None:
+        """說出自己手牌的數量"""
         if len(self.hand)==1:
             print(f"{self.name}說:UNO!") 
         else:
             print(f"{self.name}剩{len(self.hand)}張")
     
-    def convert_color(self) -> Color: # 決定特殊牌要轉換成的顏色
+    def convert_color(self) -> Color:
+        """決定特殊牌要轉換成的顏色
+        Returns:
+            Color: 玩家選擇的顏色
+        """
         if self.is_robot: # 是robot時，robot會選擇手牌中最多的顏色
             color_num = dict.fromkeys(Color, 0) # 記錄各顏色牌的數量
             for card in self.hand:
@@ -237,6 +273,7 @@ CLOCKWISE = 1
 COUNTERCLOCKWISE = -1
 
 class UNO:
+    """UNO遊戲主程式"""
     def __init__(self, player_num: int, human_name: str):
         self.player_num = player_num
         self.players: List[Player] = [Player(human_name,False)]
@@ -246,11 +283,11 @@ class UNO:
         self.main()
     
     def setup(self) -> None:
-        self.is_finish: bool = False
+        """遊戲初始化設定"""
+        self.running: bool = True
         self.deck = Deck()
-        self.deck.shuffle()
         for player in self.players:
-            player.deal(7,self.deck) # 每位玩家發7張牌
+            player.deal(7, self.deck) # 每位玩家發7張牌
         while True:
             first_card = self.deck.cards.pop() # 從牌組中抽出一張牌作為底牌
             if first_card.color == "special" or first_card.rank in ("+2", "Skip", "Reverse"):
@@ -265,7 +302,7 @@ class UNO:
         print("遊戲開始!")
         now_index: int = 0 # 從第一位玩家開始
         direction = CLOCKWISE
-        while True:
+        while self.running:
             # 玩家行動
             state = self.players[now_index].action(self.deck)
             self.players[now_index].say_card_num()
@@ -285,35 +322,27 @@ class UNO:
                     now_index += direction
                     now_index = (now_index+self.player_num) % self.player_num # 自動迴圈控制玩家索引
                     print(self.players[now_index].name+"抽2張牌")
-                    self.players[now_index].deal(2,self.deck)
+                    self.players[now_index].deal(2, self.deck)
                 case "+4":
                     now_index += direction
                     now_index = (now_index+self.player_num) % self.player_num # 自動迴圈控制玩家索引
                     print(self.players[now_index].name+"抽4張牌")
-                    self.players[now_index].deal(4,self.deck)
+                    self.players[now_index].deal(4, self.deck)
                 case "win":
-                    self.is_finish = True
+                    self.running = False
                 case _: # 錯誤情況
                     print("state:",state)
                     raise ValueError("錯誤!程式應該不會執行到這裡")
             now_index = (now_index+self.player_num) % self.player_num # 自動迴圈控制玩家索引        
-            
-            if self.is_finish: break # 結束主循環
 
             print("下一個人是"+self.players[now_index].name+"\n====================")
-            
-            # 如果牌組已經被抽完
-            if not self.deck.cards:
-                print("牌已經沒了！")
-                self.deck.cards = self.deck.discard # 牌組已經沒了，將棄牌堆的牌當成新牌組
-                self.deck.discard = [] # 將棄牌堆變空
-                self.deck.shuffle() # 重新洗牌
         
         if self.ask_restart():
             self.setup()
             self.main()
     
     def ask_restart(self) -> bool:
+        """詢問玩家是否要重新開始遊戲"""
         print("是否要重新開始遊戲？(y/n)")
         while True:
             s = input().strip().lower()
