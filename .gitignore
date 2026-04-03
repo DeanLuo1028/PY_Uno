@@ -1,3 +1,6 @@
+# 暫時擱置
+GUI/
+
 # Python
 __pycache__/
 *.py[cod]
