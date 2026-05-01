@@ -1,17 +1,19 @@
-# 這是 uno.py
-# -*- coding: UTF-8 -*-
-from typing import List
-from enum import Enum, unique
+"""UNO遊戲主程式
 
-@unique
+UNO是一款非常受歡迎的卡牌遊戲，適合2~10人遊玩。玩家需要將手中的牌出完，第一個出完牌的玩家獲勝。每張牌都有顏色和點數，玩家只能出與棄牌堆頂端的牌顏色或點數相同的牌，或者出特殊牌。特殊牌有換色牌(wild)、+4牌、跳過牌(Skip)、反轉牌(Reverse)和+2牌，每種特殊牌都有不同的效果。
+"""
+
+from enum import Enum
+from random import shuffle
+from abc import ABC, abstractmethod
+
+
 class Color(Enum):
     RED = "R"
     YELLOW = "Y"
     GREEN = "G"
     BLUE = "B"
     SPECIAL = "special"
-
-RANKS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse", "+2"]
 
 
 class Card:
@@ -20,6 +22,9 @@ class Card:
         color (Color): 牌的顏色
         rank (str): 牌的點數
     """
+    
+    RANKS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "Skip", "Reverse", "+2"]
+    
     def __init__(self, color: Color, rank: str):
         self.color: Color = color
         self.rank: str = rank
@@ -28,7 +33,7 @@ class Card:
         return self.color.value + " " + self.rank + ", "
     
     # 遊戲最核心的規則!
-    def has_compliance_rules(self, discard_last_card: "Card") -> bool:
+    def has_compliance_rules(self, discard_last_card: "Card") -> bool: # 在 3.14 之後 Card 外面可以沒有引號
         """檢查要出牌是否符合規則
     
         Args:
@@ -44,18 +49,18 @@ class Card:
 class Deck:
     """牌組
     Attributes:
-        cards (List[Card]): 牌組，用於發牌、抽牌
-        discard (List[Card]): 棄牌堆
+        cards (list[Card]): 牌組，用於發牌、抽牌
+        discard (list[Card]): 棄牌堆
     """
     # 建構函式，初始化牌組
     def __init__(self):
-        self.cards: List[Card] = [] # 用於發牌、抽牌
-        self.discard: List[Card] = [] # 棄牌堆
+        self.cards: list[Card] = [] # 用於發牌、抽牌
+        self.discard: list[Card] = [] # 棄牌堆
         # 4種顏色
         for c in (Color.RED, Color.YELLOW, Color.GREEN, Color.BLUE):
             self.cards.append(Card(c, "0")) # 添加4張0
             # 數字1~9和"Skip", "Reverse", "+2"都各有兩張
-            for r in RANKS:
+            for r in Card.RANKS:
                 self.cards.append(Card(c, r))
                 self.cards.append(Card(c, r))
         
@@ -68,7 +73,6 @@ class Deck:
     
     def shuffle(self) -> None:
         """洗牌"""
-        from random import shuffle
         shuffle(self.cards)
         print("洗牌完成!")
     
@@ -94,46 +98,56 @@ class Deck:
         self.shuffle() # 重新洗牌
 
 
-class Player:
-    """玩家"""
+class Player(ABC):
+    """玩家的抽象基類"""
+    __slots__ = ("name", "hand")
     def __init__(self, name: str):
         self.name: str = name
-        self.hand: List[Card] = [] # 玩家手牌，初始為空列表
-        self.win = lambda: len(self.hand) == 0 # 玩家獲勝的條件是手牌數量為0
+        self.hand: list[Card] = [] # 玩家手牌，初始為空列表
     
+    @abstractmethod
     def deal(self, cards_num: int, deck: Deck) -> None:
-        raise NotImplementedError("子類別必須實作這個方法")
+        pass
+    @abstractmethod
     def play(self, deck: Deck) -> bool:
-        raise NotImplementedError("子類別必須實作這個方法")
+        pass
+    @abstractmethod
     def convert_color(self) -> Color:
-        raise NotImplementedError("子類別必須實作這個方法")
+        pass
+    
+    def win(self):
+        """玩家是否獲勝
+        
+        玩家獲勝的條件是手牌數量為0
+        """
+        return len(self.hand) == 0
     
     def display_hand(self) -> None:
         """顯示玩家手牌"""
-        print(self.name + "的手牌:")
+        print(self.name, "的手牌:")
         for index, card in enumerate(self.hand, start=1):
-            print(f"第{index}張:{card}", end=" ") #不要換行
+            print(f"第{index}張: {card}", end="") #不要換行
         print() # 只是為了換行
     
-    def action(self, deck: Deck) -> str:
-        """玩家行動
+    def one_round(self, deck: Deck) -> str:
+        """玩家行動一次
         Args:
             deck (Deck): 牌組
         Returns:
             str: 玩家行動後的狀態，有normal, Skip, Reverse, +2, +4, win等
         """
         card = deck.discard[-1]
-        print("現在牌堆最上方的牌:"+str(card))
+        print(f"現在牌堆最上方的牌: {card}")
+        
         # 玩家行動
-
-        if not self.play(deck):
+        if not self.play(deck): # 依照實際型別動態查找
             return "normal" # 沒出牌是普通情況，回傳normal
         
         if self.win():
             return "win" # 玩家獲勝，回傳win
         
         played_card = deck.discard[-1] # 棄牌堆頂端的牌是剛剛出的牌
-        #為了將特殊情況回傳給主函數
+        # 為了將特殊情況回傳給主函數
         if played_card.color == Color.SPECIAL: # 出了特殊牌
             played_card.color = self.convert_color() # 將特殊牌的顏色轉換成玩家所選的顏色
             match played_card.rank:
@@ -151,13 +165,14 @@ class Player:
     def say_card_num(self) -> None:
         """說出自己手牌的數量"""
         if len(self.hand) == 1:
-            print(f"{self.name}說:UNO!") 
+            print(self.name, "說: UNO!") 
         else:
-            print(f"{self.name}剩{len(self.hand)}張")
+            print(f"{self.name} 剩 {len(self.hand)} 張")
 
 
 class RobotPlayer(Player):
     """機器人類別，繼承自Player"""
+    __slots__ = ("name", "hand")
     def __init__(self, name: str):
         super().__init__(name)
 
@@ -184,18 +199,18 @@ class RobotPlayer(Player):
             if card.color != Color.SPECIAL and card.has_compliance_rules(discard_last_card):
                 self.hand.remove(card) # 出手中符合規則的牌中的一張
                 deck.discard.append(card) # 將這張牌放入棄牌堆
-                print(f"{self.name}出了{card}")
+                print(f"{self.name} 出了 {card}")
                 return True
         
         for card in self.hand:
             if card.color == Color.SPECIAL:
                 self.hand.remove(card)
                 deck.discard.append(card)
-                print(f"{self.name}出了{card}")
+                print(f"{self.name} 出了 {card}")
                 return True
         
-        print(self.name+"沒牌可出，抽一張")
-        self.deal(1,deck) # 抽一張牌
+        print(self.name, "沒牌可出，抽一張")
+        self.deal(1, deck) # 抽一張牌
         return False # 沒有符合規則的牌，回傳False
     
     def convert_color(self) -> Color:
@@ -213,12 +228,13 @@ class RobotPlayer(Player):
             if num == max_color_num:
                 max_color = color
                 break
-        print(self.name+"選擇了"+max_color.value.strip()+"色")
+        print(f"{self.name} 選擇了 {max_color.name}")
         return max_color
 
 
 class HumanPlayer(Player):
-    """玩家類別，繼承自Player"""
+    """人類玩家類別，繼承自Player"""
+    __slots__ = ("name", "hand")
     def __init__(self, name: str):
         super().__init__(name)
     
@@ -231,7 +247,7 @@ class HumanPlayer(Player):
         for _ in range(cards_num): # 抽cards_num張牌
             # 從牌組中取出一張牌，將牌加入玩家手牌
             self.hand.append( card:=deck.draw() )
-            print(f"{self.name}抽到了{card}")
+            print(f"{self.name} 抽到了 {card}")
     
     def play(self, deck: Deck) -> bool:
         """玩家行動
@@ -246,7 +262,7 @@ class HumanPlayer(Player):
         
         # 循環直到用戶輸入合法的整數在指定範圍內
         while True:
-            print(self.name+"請問你要出第幾張牌?(如果不想出牌，請輸入0)")
+            print(self.name, "請問你要出第幾張牌?(如果不想出牌，請輸入0)")
             s = input().strip()
             if s.lower() == "quit": # 用戶想要退出遊戲
                 print("遊戲結束!")
@@ -274,7 +290,7 @@ class HumanPlayer(Player):
                 
                 self.hand.remove(card)
                 deck.discard.append(card) # 將牌放入棄牌堆
-                print(f"{self.name}出了{card}")
+                print(f"{self.name} 出了 {card}")
                 return True # 回傳True，表示有出牌
     
     def convert_color(self) -> Color:
@@ -283,16 +299,16 @@ class HumanPlayer(Player):
             Color: 玩家選擇的顏色
         """
         while True:
-            print(self.name+"請選擇顏色:(請輸入RYGB其中之一)")
+            print(self.name, "請選擇顏色:(請輸入RYGB其中之一)")
             s = input().strip().upper()
             if s not in ("R","Y","G","B"):
                 print("請輸入有效的顏色代號!")
             else:
-                print(self.name+"選擇了"+Color(s).name)
+                print(f"{self.name} 選擇了 {Color(s).name}")
                 return Color(s)
 
 
-PLAYERS_NAME = ["Anna","Bob","Charlotte","Danny","Emily","Frank","Grace","Henry","Isabella","Jessica","Karen","Lisa","Michael","Nancy","Olivia","Peter","Quincy","Rachel","Steve","Tina","Ursula","Victor","Wendy","Xavier","Yvonne","Zachary"]
+PLAYERS_NAME = ["Anna", "Bob", "Charlotte", "Danny", "Emily", "Frank", "Grace", "Henry", "Isabella"]
 CLOCKWISE = 1
 COUNTERCLOCKWISE = -1
 
@@ -300,7 +316,7 @@ class UNO:
     """UNO遊戲主程式"""
     def __init__(self, player_num: int, human_name: str):
         self.player_num = player_num
-        self.players: List[Player] = [HumanPlayer(human_name)]
+        self.players: list[Player] = [HumanPlayer(human_name)]
         for i in range(player_num-1): # 除了一個人類剩下的玩家都是機器人
             self.players.append(RobotPlayer(PLAYERS_NAME[i])) # 創造Robot玩家
         self.setup()
@@ -308,12 +324,12 @@ class UNO:
     
     def setup(self) -> None:
         """遊戲初始化設定"""
-        self.running: bool = True
+        self.running = True
         self.deck = Deck()
         for player in self.players:
             player.deal(7, self.deck) # 每位玩家發7張牌
         while True:
-            first_card = self.deck.cards.pop() # 從牌組中抽出一張牌作為底牌
+            first_card = self.deck.draw() # 從牌組中抽出一張牌作為底牌
             if first_card.color == Color.SPECIAL or first_card.rank in ("+2", "Skip", "Reverse"):
                 self.deck.cards.insert(0, first_card) # 特殊牌或+2或Skip或Reverse，放回牌組
             else:
@@ -324,42 +340,44 @@ class UNO:
     def main_loop(self) -> None:
         """遊戲主循環"""
         print("遊戲開始!")
-        now_index: int = 0 # 從第一位玩家開始
+        now_index = 0 # 從第一位玩家開始
         direction = CLOCKWISE
-        normalize_index = lambda idx: (idx % self.player_num + self.player_num) % self.player_num # 自動迴圈控制玩家索引
+        def next_player(now_index: int):
+            """依順序換下一個玩家，並用自動迴圈控制玩家索引"""
+            return (now_index + direction) % self.player_num
         
         while self.running:
             # 玩家行動
-            state = self.players[now_index].action(self.deck)
+            state = self.players[now_index].one_round(self.deck)
             self.players[now_index].say_card_num()
             match state:
                 case "normal":
-                    now_index = normalize_index(now_index + direction)
+                    now_index = next_player(now_index)
                 case "Skip":
-                    now_index = normalize_index(now_index + direction)
-                    print(self.players[now_index].name+"被跳過了")
-                    now_index = normalize_index(now_index + direction)
+                    now_index = next_player(now_index)
+                    print(self.players[now_index].name, "被跳過了")
+                    now_index = next_player(now_index)
                 case "Reverse":
                     direction *= -1
                     print("換成逆時針" if direction==COUNTERCLOCKWISE else "換成順時針")
-                    now_index = normalize_index(now_index + direction)
+                    now_index = next_player(now_index)
                 case "+2":
-                    now_index = normalize_index(now_index + direction)
-                    print(self.players[now_index].name+"抽2張牌")
+                    now_index = next_player(now_index)
+                    print(self.players[now_index].name, "抽2張牌")
                     self.players[now_index].deal(2, self.deck)
                 case "+4":
-                    now_index = normalize_index(now_index + direction)
-                    print(self.players[now_index].name+"抽4張牌")
+                    now_index = next_player(now_index)
+                    print(self.players[now_index].name, "抽4張牌")
                     self.players[now_index].deal(4, self.deck)
                 case "win":
-                    print(self.players[now_index].name+"獲勝了!")
+                    print(self.players[now_index].name, "獲勝了!")
                     self.running = False
                     break
                 case _: # 錯誤情況
                     print("state:",state)
                     raise ValueError("錯誤!程式應該不會執行到這裡")
 
-            print("下一個人是"+self.players[now_index].name+"\n====================")
+            print(f"下一個人是{self.players[now_index].name}\n"+"="*20)
         
         if self.ask_restart():
             self.setup()
@@ -390,7 +408,8 @@ if __name__ == '__main__':
         except ValueError:
             print("請輸入一個有效的整數!")
     
-    human_name = input("請輸入人類玩家的名字:").strip()
-    if not human_name: human_name = "Player"
+    human_name = input("請輸入人類玩家的名字:").strip() or "Player"
+    
+    print("註：遊戲中輸入quit可直接結束遊戲")
     
     UNO(player_num, human_name)
